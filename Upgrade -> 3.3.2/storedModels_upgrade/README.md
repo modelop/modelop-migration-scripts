@@ -1,27 +1,39 @@
 # Migration Process for Upgrading StoredModels modelMetadata.custom to 3.3.2 standard
 
 ### Introduction:
+This guide outlines the steps required to upgrade existing ModelOp Center (MOC) environments to use the new StoredModels.modelMetadata.custom format introduced in version 3.3.2.
 
-This document provides the necessary steps to upgrade existing MOC environments that use the previous StoredModel modelMetaData.custom  format to the new 3.3.2 standard. 
+## Prerequisites
+- Before starting the migration process, ensure the following:
 
-### Prerequisites
+- MOC Environment: All MOC images are upgraded to version 3.3.2.
 
-- MOC images must already be migrated to 3.3.2.
-- All Application Forms must already be migrated to the new 3.3.2 format.
-- Admin ModelOp Center Browser Access: You must have access to the MOC admin browser access to generate the input file with existing ApplicationForms.
-- Backup: Ensure you have a backup of both the StoredModel collection and Application Forms before proceeding.
-- Python: Ensure Python 3.8 or + ,   is installed and configured on your system.
-- MongoDB Access: You must have access to the MongoDB instance that contains the application forms and stored models.
-- If the underlaying DB is DocumentDB, then the supported version is 5.0 , if its 4.0 please use the script labeled only_for_document_db_4/storedmodels_metadata_custom_3-3-2_converter_doc_4.py
+- Application Forms: All Application Forms are already migrated to the 3.3.2 format.
+
+- Admin Access: You have admin access to the MOC Browser UI to generate the necessary input file.
+
+- Backups: Back up the StoredModels collection and all Application Forms.
+
+- Python: Python 3.8 or later is installed and properly configured.
+
+- MongoDB Access: You have access to the MongoDB instance used by your MOC environment.
+
+- DocumentDB Version Compatibility:
+
+    - For DocumentDB version 5.0, use `storedmodels_metadata_custom_3-3-2_converter.py`
+
+    - For DocumentDB version 4.0, use the script under `ONLY_DOCUMENT_DB_4_storedmodels_metadata_custom_3-3-2_converter.py`
+
+
 
 
 ### Overview
 
-The migration process is divided into two main steps:
+The migration process involves two main steps:
 
-Generate MongoDB Migration Scripts: A Python script (storedmodels_metadata_custom_3-3-2_converter.py) receives an input file containing existing application forms and generates a set of MongoDB migration scripts (one script per application form).
+1- Generate MongoDB Migration Scripts: Use a Python script to convert application form metadata into MongoDB update scripts.
 
-Execute Migration Scripts: The generated MongoDB migration scripts are executed on the target environment to perform the necessary database updates.
+2- Execute the Migration Scripts: Run the generated scripts to apply updates to your database.
 
 
 ---
@@ -48,7 +60,18 @@ git clone this reposiroty.
 
 - Run the Python Migration Script: With the input file (applications-forms-dump.json) ready, run the Python script to generate the migration scripts:
 
+
+For MongoDB and DocumentDB 5.0.0:
+
+```
 python storedmodels_metadata_custom_3-3-2_converter.py applications-forms-dump.json 
+```
+
+For Document DB 4.0.0:
+
+```
+python ONLY_DOCUMENT_DB_4_storedmodels_metadata_custom_3-3-2_converter.py applications-forms-dump.json 
+```
 
 If everything is successful, an output directory will be created. This directory contains one migration script for each application form.
 
