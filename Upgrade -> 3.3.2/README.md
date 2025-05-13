@@ -2,7 +2,18 @@
 
 ### Introduction:
 
-This document provides the necessary steps to upgrade existing MOC environments that use the previous StoredModel modelMetaData.custom  format to the new 3.3.2 standard. Before proceeding,
+This document provides the necessary steps to upgrade existing MOC environments that use the previous StoredModel modelMetaData.custom  format to the new 3.3.2 standard. 
+
+### Prerequisites
+
+- MOC images must already be migrated to 3.3.2.
+- All Application Forms must already be migrated to the new 3.3.2 format.
+- Admin ModelOp Center Browser Access: You must have access to the MOC admin browser access to generate the input file with existing ApplicationForms.
+- Backup: Ensure you have a backup of both the StoredModel collection and Application Forms before proceeding.
+- Python: Ensure Python 3.8 or + ,   is installed and configured on your system.
+- MongoDB Access: You must have access to the MongoDB instance that contains the application forms and stored models.
+- If the underlaying DB is DocumentDB, then the supported version is 5.0 , if its 4.0 please use the script labeled only_for_document_db_4/storedmodels_metadata_custom_3-3-2_converter_doc_4.py
+
 
 ### Overview
 
@@ -12,17 +23,6 @@ Generate MongoDB Migration Scripts: A Python script (storedmodels_metadata_custo
 
 Execute Migration Scripts: The generated MongoDB migration scripts are executed on the target environment to perform the necessary database updates.
 
-### Prerequisites
-
-- All Application Forms must already be migrated to the new 3.3.2 format.
-
-- Admin ModelOp Center Browser Access: You must have access to the MOC admin browser access to generate the input file with existing ApplicationForms.
-
-- Backup: Ensure you have a backup of both the StoredModel collection and Application Forms before proceeding.
-
-- Python: Ensure Python 3.8 or + ,   is installed and configured on your system.
-
-- MongoDB Access: You must have access to the MongoDB instance that contains the application forms and stored models.
 
 ---
 
