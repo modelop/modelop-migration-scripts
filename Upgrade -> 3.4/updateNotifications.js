@@ -34,7 +34,7 @@ db.getCollection("notification").find({
             );
         }
     } catch (error) {
-        console.log("Error processing notification "+ doc.id + " " + error)
+        print("Error processing notification "+ doc.id + " " + error)
     }
 });
 
@@ -46,18 +46,20 @@ db.getCollection("notification").find({
     try {
         if (doc.assignment && doc.assignment.serviceNowIssueObject) {
             let dueDate = null
-            if (doc.assignment.serviceNowIssueObject.due_date?.value && doc.assignment.serviceNowIssueObject.due_date?.value !== "") {
-                if (doc.assignment.serviceNowIssueObject.due_date?.value.length <= 10) {
-                    dueDate = new Date(doc.assignment.serviceNowIssueObject.due_date?.value + "T12:00:00")
+            if (doc.assignment.serviceNowIssueObject["due_date"] &&
+                doc.assignment.serviceNowIssueObject.due_date["value"] &&
+                doc.assignment.serviceNowIssueObject.due_date["value"] !== "") {
+                if (doc.assignment.serviceNowIssueObject.due_date["value"].length <= 10) {
+                    dueDate = new Date(doc.assignment.serviceNowIssueObject.due_date["value"] + "T12:00:00")
                 } else {
-                    dueDate = new Date(doc.assignment.serviceNowIssueObject.due_date?.value)
+                    dueDate = new Date(doc.assignment.serviceNowIssueObject.due_date["value"])
                 }
             }
             db.getCollection("notification").updateOne(
                 { "_id": doc._id },
-                { $set: {
+                { "$set": {
                         "assignment.dueDate": dueDate,
-                        "assignment.priority": doc.assignment.serviceNowIssueObject.priority?.display_value
+                        "assignment.priority": doc.assignment.serviceNowIssueObject.priority["display_value"]
                     }}
             );
         } else {
@@ -72,6 +74,6 @@ db.getCollection("notification").find({
             );
         }
     } catch (error) {
-        console.log("Error processing notification "+ doc.id + " " + error)
+        print("Error processing notification "+ doc.id + " " + error)
     }
 });
