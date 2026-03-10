@@ -1,3 +1,6 @@
+// Set to 'true' to NOT modify the data
+const dryRun = false;
+
 const ENTITY_TYPE_TO_CHANGES_PATH = {
     DeployableModel: new Set([
         "/associatedModels",
@@ -539,38 +542,58 @@ const ENTITY_TYPE_TO_CHANGES_PATH = {
     ])
  };
 
- function normalizePath(path) {
-   // Remove numeric indexes
-   return path.replace(/\/\d+\//g, "/");
- }
+let deletedCount = 0;
+let updatedCount = 0;
+let processedCount = 0;
+
+function normalizePath(path) {
+  if (!path) return path;
+  // Remove numeric indexes (middle or end)
+  return path.replace(/\/\d+(?=\/|$)/g, "");
+}
 
 Object.keys(ENTITY_TYPE_TO_CHANGES_PATH).forEach(entityType => {
-    const pathsToClean = ENTITY_TYPE_TO_CHANGES_PATH[entityType];
+  const pathsToClean = ENTITY_TYPE_TO_CHANGES_PATH[entityType];
 
-    db.getCollection("auditRecord").find({
-        "entityType": entityType,
-        "changes": {$ne: []}
-    }).forEach(function(doc) {
-        try {
-            const filteredChanges = doc.changes.filter(change => {
-                return !pathsToClean.has(normalizePath(change.path));
-            });
+  db.getCollection("auditRecord").find({
+      entityType: entityType,
+      changes: { $ne: [] }
+    }).forEach(function (doc) {
+      try {
+        processedCount++;
 
-            if (filteredChanges.length === 0) {
-                // No changes left after cleanup, so delete the document
-                db.getCollection("auditRecord").deleteOne(
-                    { "_id": doc._id }
-                );
-            } else if (filteredChanges.length !== doc.changes.length) {
-                // Update the changes array with the filtered one
-                db.getCollection("auditRecord").updateOne(
-                    { "_id": doc._id },
-                    { $set: { changes: filteredChanges } }
-                );
-            }
-        }
-          } catch (error) {
-              print("Error processing audit record "+ doc.id + " " + error)
+        if (!doc.changes || !Array.isArray(doc.changes)) return;
+
+        const filteredChanges = doc.changes.filter(change => {
+          return !pathsToClean.has(normalizePath(change.path));
+        });
+
+        if (filteredChanges.length === 0) {
+          deletedCount++;
+
+          if (!dryRun) {
+            db.getCollection("auditRecord").deleteOne({ _id: doc._id });
           }
-      });
-})
+        } else if (filteredChanges.length !== doc.changes.length) {
+          updatedCount++;
+
+          if (!dryRun) {
+            db.getCollection("auditRecord").updateOne(
+              { _id: doc._id },
+              { $set: { changes: filteredChanges } }
+            );
+          }
+        }
+      } catch (error) {
+        print("Error processing audit record " + doc._id + " " + error);
+      }
+    });
+});
+
+print("");
+print("========== SUMMARY ==========");
+print("Processed records : " + processedCount);
+print("Records to update : " + updatedCount);
+print("Records to delete : " + deletedCount);
+print("Dry run           : " + dryRun);
+print("=============================");
