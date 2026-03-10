@@ -1,5 +1,5 @@
-// Set to 'true' to NOT modify the data
-const dryRun = false;
+// Set to 'false' to actually modify the data
+const dryRun = true;
 
 const ENTITY_TYPE_TO_CHANGES_PATH = {
     DeployableModel: new Set([
