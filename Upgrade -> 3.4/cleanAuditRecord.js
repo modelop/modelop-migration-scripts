@@ -1,5 +1,7 @@
 // Set to 'false' to actually modify the data
-const dryRun = true;
+const DRY_RUN = true;
+
+const COLLECTION_NAME = "auditRecord";
 
 const ENTITY_TYPE_TO_CHANGES_PATH = {
     DeployableModel: new Set([
@@ -458,7 +460,7 @@ function normalizePath(path) {
 Object.keys(ENTITY_TYPE_TO_CHANGES_PATH).forEach(entityType => {
   const pathsToClean = ENTITY_TYPE_TO_CHANGES_PATH[entityType];
 
-  db.getCollection("auditRecord").find({
+  db.getCollection(COLLECTION_NAME).find({
       entityType: entityType,
       changes: { $ne: [] }
     }).forEach(function (doc) {
@@ -474,14 +476,14 @@ Object.keys(ENTITY_TYPE_TO_CHANGES_PATH).forEach(entityType => {
         if (filteredChanges.length === 0) {
           deletedCount++;
 
-          if (!dryRun) {
-            db.getCollection("auditRecord").deleteOne({ _id: doc._id });
+          if (!DRY_RUN) {
+            db.getCollection(COLLECTION_NAME).deleteOne({ _id: doc._id });
           }
         } else if (filteredChanges.length !== doc.changes.length) {
           updatedCount++;
 
-          if (!dryRun) {
-            db.getCollection("auditRecord").updateOne(
+          if (!DRY_RUN) {
+            db.getCollection(COLLECTION_NAME).updateOne(
               { _id: doc._id },
               { $set: { changes: filteredChanges } }
             );
@@ -491,12 +493,14 @@ Object.keys(ENTITY_TYPE_TO_CHANGES_PATH).forEach(entityType => {
         print("Error processing audit record " + doc._id + " " + error);
       }
     });
-});
 
-print("");
-print("========== SUMMARY ==========");
-print("Processed records : " + processedCount);
-print("Records to update : " + updatedCount);
-print("Records to delete : " + deletedCount);
-print("Dry run           : " + dryRun);
-print("=============================");
+    print("");
+    print("========== SUMMARY ==========");
+    print("Dry run           : " + DRY_RUN);
+    print("Collection name   : " + COLLECTION_NAME);
+    print("Entity type       : " + entityType);
+    print("Processed records : " + processedCount);
+    print("Records to update : " + updatedCount);
+    print("Records to delete : " + deletedCount);
+    print("=============================");
+});
