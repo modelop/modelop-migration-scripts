@@ -488,7 +488,7 @@ Object.keys(ENTITY_TYPE_TO_CHANGES_PATH).forEach(entityType => {
           }
         }
       } catch (error) {
-        print("Error processing audit record " + doc._id + " " + error);
+        print("Error processing audit record " + doc._id.toString('base64') + " " + error);
       }
     });
 });
