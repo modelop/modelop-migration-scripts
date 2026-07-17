@@ -12,14 +12,26 @@ DEFAULT_CSV_PATH = Path("DelegatesOutputParams.csv")
 
 CAMUNDA_NS = "http://camunda.org/schema/1.0/bpmn"
 BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
+BPMNDI_NS = "http://www.omg.org/spec/BPMN/20100524/DI"
+DC_NS = "http://www.omg.org/spec/DD/20100524/DC"
+DI_NS = "http://www.omg.org/spec/DD/20100524/DI"
+MODELER_NS = "http://camunda.org/schema/modeler/1.0"
 
 NS = {
     "bpmn": BPMN_NS,
     "camunda": CAMUNDA_NS,
+    "bpmndi": BPMNDI_NS,
+    "dc": DC_NS,
+    "di": DI_NS,
+    "modeler": MODELER_NS,
 }
 
 ET.register_namespace("bpmn", BPMN_NS)
 ET.register_namespace("camunda", CAMUNDA_NS)
+ET.register_namespace("bpmndi", BPMNDI_NS)
+ET.register_namespace("dc", DC_NS)
+ET.register_namespace("di", DI_NS)
+ET.register_namespace("modeler", MODELER_NS)
 
 
 def _lowercase_first_char(s: str) -> str:
@@ -230,7 +242,7 @@ def add_output_parameters_from_csv(bpmn_path: Path, delegate_to_outputs: Dict[st
     if modified:
         if overwrite:
             print(f"Saving changes to {bpmn_path}")
-            tree.write(bpmn_path, encoding="utf-8", xml_declaration=True)
+            tree.write(bpmn_path, encoding="UTF-8", xml_declaration=True)
 
     return modified
 
