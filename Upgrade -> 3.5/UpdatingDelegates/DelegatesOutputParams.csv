@@ -68,6 +68,14 @@ GetNotificationById, NOTIFICATION
 GetAllNotificationsByTypeAndSeverity, NOTIFICATIONS
 CreateRuntimeNotification, NOTIFICATION
 ChatWithModelOp, ANSWER
+ImportBedrockModels, STORED_MODEL_IDS
+ImportBedrockTokenUsage, TOKEN_USAGE_LIST
+ImportOpenAIModels, STORED_MODEL_IDS
+ImportOpenAITokenUsage, TOKEN_USAGE_LIST
+ListBedrockModels, NEW_MODELS_LIST
+ListBedrockModels, EXISTING_MODELS_LIST
+ListBedrockModels, ALL_MODELS_LIST
+ListOpenAIModels, STORED_MODELS
 PatchModelTestResult, MODEL_TEST_RESULT
 GetModelTestResult, MODEL_TEST_RESULT_IDS
 GetModelTestResult, MODEL_TEST_RESULT
