@@ -13,11 +13,11 @@ python find_delegate.py --delegate <delegate_name> [--bpmn-dir <directory> | --u
 ```
 
 ### `update_outputparameters.py`
-Audits and updates output parameter references in BPMN processes based on a mapping defined in a CSV file.
+Audits and updates output parameter references in BPMN processes based on a mapping defined in a CSV file. It now dynamically extracts XML namespaces and ensures correct XML declaration formatting.
 
 #### Usage:
 ```bash
-python update_outputparameters.py --csv-path <path_to_csv> [--bpmn-dir <directory> | --url <camunda_engine_rest_url>] [--overwrite | --deploy]
+python update_outputparameters.py --csv <path_to_csv> [--bpmn-dir <directory> | --url <camunda_engine_rest_url>] [--overwrite | --deploy] [--bearer-token <token>]
 ```
 
 ## CSV Format

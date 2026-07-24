@@ -7,31 +7,24 @@ import urllib.request
 import urllib.parse
 import json
 import uuid
+import io
+
+def get_namespaces_from_file(file_path: Path) -> Dict[str, str]:
+    namespaces = {}
+    for _, elem in ET.iterparse(str(file_path), events=('start-ns',)):
+        prefix, uri = elem
+        namespaces[prefix] = uri
+    return namespaces
+
+def get_namespaces_from_string(xml_string: str) -> Dict[str, str]:
+    namespaces = {}
+    for _, elem in ET.iterparse(io.BytesIO(xml_string.encode('utf-8')), events=('start-ns',)):
+        prefix, uri = elem
+        namespaces[prefix] = uri
+    return namespaces
 
 DEFAULT_CSV_PATH = Path("DelegatesOutputParams.csv")
 
-CAMUNDA_NS = "http://camunda.org/schema/1.0/bpmn"
-BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
-BPMNDI_NS = "http://www.omg.org/spec/BPMN/20100524/DI"
-DC_NS = "http://www.omg.org/spec/DD/20100524/DC"
-DI_NS = "http://www.omg.org/spec/DD/20100524/DI"
-MODELER_NS = "http://camunda.org/schema/modeler/1.0"
-
-NS = {
-    "bpmn": BPMN_NS,
-    "camunda": CAMUNDA_NS,
-    "bpmndi": BPMNDI_NS,
-    "dc": DC_NS,
-    "di": DI_NS,
-    "modeler": MODELER_NS,
-}
-
-ET.register_namespace("bpmn", BPMN_NS)
-ET.register_namespace("camunda", CAMUNDA_NS)
-ET.register_namespace("bpmndi", BPMNDI_NS)
-ET.register_namespace("dc", DC_NS)
-ET.register_namespace("di", DI_NS)
-ET.register_namespace("modeler", MODELER_NS)
 
 
 def _lowercase_first_char(s: str) -> str:
@@ -60,8 +53,8 @@ def _matches_output_reference(op: ET.Element, param: str):
         return None
 
 
-def _matches_script_reference(op: ET.Element, param: str):
-    script_elem = op.find("camunda:script", namespaces=NS)
+def _matches_script_reference(op: ET.Element, param: str, namespaces: Dict[str, str]):
+    script_elem = op.find("camunda:script", namespaces=namespaces)
     raw_script = script_elem.text if script_elem is not None else ""
     if (
         param in raw_script
@@ -73,11 +66,11 @@ def _matches_script_reference(op: ET.Element, param: str):
         return None
 
 
-def _matches_remove_reference(op: ET.Element, param: str):
+def _matches_remove_reference(op: ET.Element, param: str, namespaces: Dict[str, str]):
     raw_value = (op.text or op.get("value") or "").strip()
     if f"${{execution.removeVariable('{param}')}}" in raw_value:
         return raw_value
-    script_elem = op.find("camunda:script", namespaces=NS)
+    script_elem = op.find("camunda:script", namespaces=namespaces)
     raw_script = script_elem.text if script_elem is not None else ""
     if (
         f'execution.removeVariable("{param}")' in raw_script
@@ -126,13 +119,16 @@ def load_delegate_outputparam_map(csv_path: Path) -> Dict[str, List[str]]:
     return mapping
 
 
-def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[str]]) -> bool:
+def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[str]], namespaces: Dict[str, str]) -> bool:
     root = tree.getroot()
     modified = False
 
-    for st in root.findall(".//bpmn:serviceTask", namespaces=NS):
-        delegate_expr = st.get(f"{{{CAMUNDA_NS}}}delegateExpression") or ""
-        delegate_class = st.get(f"{{{CAMUNDA_NS}}}class") or ""
+    for st in root.findall(".//bpmn:serviceTask", namespaces=namespaces):
+        camunda_ns = namespaces.get("camunda")
+        bpmn_ns = namespaces.get("bpmn")
+        
+        delegate_expr = st.get(f"{{{camunda_ns}}}delegateExpression") or ""
+        delegate_class = st.get(f"{{{camunda_ns}}}class") or ""
         
         # Determine the value to look up in the mapping
         if delegate_expr.strip():
@@ -151,15 +147,15 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
         if not outputs:
             continue
 
-        ext = st.find("bpmn:extensionElements", namespaces=NS)
+        ext = st.find("bpmn:extensionElements", namespaces=namespaces)
         if ext is None:
-            ext = ET.SubElement(st, f"{{{BPMN_NS}}}extensionElements")
+            ext = ET.SubElement(st, f"{{{bpmn_ns}}}extensionElements")
 
-        cam_input_output = ext.find("camunda:inputOutput", namespaces=NS)
+        cam_input_output = ext.find("camunda:inputOutput", namespaces=namespaces)
         if cam_input_output is None:
-            cam_input_output = ET.SubElement(ext, f"{{{CAMUNDA_NS}}}inputOutput")
+            cam_input_output = ET.SubElement(ext, f"{{{camunda_ns}}}inputOutput")
 
-        existing = cam_input_output.findall("camunda:outputParameter", namespaces=NS)
+        existing = cam_input_output.findall("camunda:outputParameter", namespaces=namespaces)
         existing_names = {op.get("name") for op in existing if op.get("name")}
 
         # Swapping the outputs from the CSV file
@@ -171,7 +167,7 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
                     (op for op in existing if op.get("name") == out_param),
                     None,
                 )
-                script_elem = element_to_remove.find("camunda:script", namespaces=NS)
+                script_elem = element_to_remove.find("camunda:script", namespaces=namespaces)
                 existing_value = (
                     (script_elem.text if script_elem is not None else None)
                     or element_to_remove.text
@@ -183,11 +179,11 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
                 continue
 
             # Looking for any "removeVariable" references in the existing output parameters"
-            remove_match = next((op for op in existing if _matches_remove_reference(op, out_param) is not None), None,)
+            remove_match = next((op for op in existing if _matches_remove_reference(op, out_param, namespaces) is not None), None,)
             if remove_match is not None:
                 existing_name = remove_match.get("name")
                 print(f" |*- Output parameter \"{out_param}\" is being removed in parameter \"{existing_name}\", Make sure of not use this output parameter.")
-                existing_value = _matches_remove_reference(remove_match, out_param).replace('\n', ' ')
+                existing_value = _matches_remove_reference(remove_match, out_param, namespaces).replace('\n', ' ')
                 print(f" |   Existing value: \"{existing_value}\"")
                 continue
 
@@ -202,17 +198,17 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
                 continue
 
             # Looking for the variable into the script text of the existing output parameter
-            script_match = next((op for op in existing if _matches_script_reference(op, out_param)is not None), None,)
+            script_match = next((op for op in existing if _matches_script_reference(op, out_param, namespaces)is not None), None,)
             if script_match is not None:
                 existing_name = script_match.get("name")
-                existing_script = _matches_script_reference(script_match, out_param).replace('\n', ' ')
+                existing_script = _matches_script_reference(script_match, out_param, namespaces).replace('\n', ' ')
                 print(f" |*  Output parameter \"{out_param}\" already used in script \"{existing_name}\", skipping.")
                 print(f" |   Existing script: \"{existing_script}\"")
                 existing.remove(script_match)
                 continue
 
             # When the variable is not found, we add the new output parameter
-            outp = ET.SubElement(cam_input_output, f"{{{CAMUNDA_NS}}}outputParameter")
+            outp = ET.SubElement(cam_input_output, f"{{{camunda_ns}}}outputParameter")
             outp.set("name", out_param)
             outp.set("value", f"${{execution.getVariable(\"{out_param}\")}}")
             print(f" |   Added output parameter: \"{out_param}\"")
@@ -221,7 +217,7 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
         # Swapping the existing outputs in the ServiceTask
         for existing_output in existing:
             existing_output_name = (existing_output.get('name') or "").replace('\n', ' ')
-            script_elem = existing_output.find("camunda:script", namespaces=NS)
+            script_elem = existing_output.find("camunda:script", namespaces=namespaces)
             if script_elem is not None:
                 script_text = (script_elem.text or "").replace('\n', ' ')
                 print(f" |*  Keeping existing Output parameter name: \"{existing_output_name}\" with script: \"{script_text}\"")
@@ -233,16 +229,24 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
 
 def add_output_parameters_from_csv(bpmn_path: Path, delegate_to_outputs: Dict[str, List[str]], overwrite: bool = False) -> bool:
     try:
+        namespaces = get_namespaces_from_file(bpmn_path)
         tree = ET.parse(bpmn_path)
     except ET.ParseError as e:
         raise ValueError(f"Invalid XML in {bpmn_path}: {e}") from e
 
-    modified = update_bpmn_tree(tree, delegate_to_outputs)
+    modified = update_bpmn_tree(tree, delegate_to_outputs, namespaces)
     
     if modified:
         if overwrite:
             print(f"Saving changes to {bpmn_path}")
-            tree.write(bpmn_path, encoding="UTF-8", xml_declaration=True)
+            for prefix, uri in namespaces.items():
+                ET.register_namespace(prefix, uri)
+            
+            tree.write(bpmn_path, encoding="UTF-8", xml_declaration=False)
+            with open(bpmn_path, 'r+', encoding='utf-8') as f:
+                content = f.read()
+                f.seek(0, 0)
+                f.write('<?xml version="1.0" encoding="UTF-8"?>\n' + content)
 
     return modified
 
@@ -403,20 +407,21 @@ def main() -> None:
                 continue
                 
             try:
+                namespaces = get_namespaces_from_string(xml_content)
                 tree = ET.ElementTree(ET.fromstring(xml_content))
                 
                 print(f"Analyzing process: {pd_key} [{pd_id}]")
-                if update_bpmn_tree(tree, delegate_to_outputs):
+                if update_bpmn_tree(tree, delegate_to_outputs, namespaces):
                     changed += 1
                     changed_files.append(pd_key)
                     print(f"Analysis found that Process {pd_key} requires updates.")
                     
                     if args.deploy:
                         # Convert back to string
-                        ET.register_namespace("bpmn", BPMN_NS)
-                        ET.register_namespace("camunda", CAMUNDA_NS)
-                        xml_bytes = ET.tostring(tree.getroot(), encoding="utf-8", xml_declaration=True)
-                        xml_str = xml_bytes.decode("utf-8")
+                        for prefix, uri in namespaces.items():
+                            ET.register_namespace(prefix, uri)
+                        xml_bytes = ET.tostring(tree.getroot(), encoding="utf-8", xml_declaration=False)
+                        xml_str = '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_bytes.decode("utf-8")
                         
                         deploy_name = f"{pd_name} (Updated)"
                         filename = f"{pd_key}.bpmn"
