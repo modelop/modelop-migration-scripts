@@ -137,3 +137,4 @@ FindDeployedModelAdditionalAssets, ASSETS
 FindAllDeployedModelsExpiring, DEPLOYED_MODELS
 RefreshDeployedModelsByDeployableModel, DEPLOYED_MODEL_IDS
 PatchDeployedModel, DEPLOYED_MODEL
+GetLatestTokenUsageDate,LATEST_TOKEN_USAGE_DATE
