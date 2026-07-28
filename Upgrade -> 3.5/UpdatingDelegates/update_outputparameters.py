@@ -149,11 +149,14 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
 
         ext = st.find("bpmn:extensionElements", namespaces=namespaces)
         if ext is None:
-            ext = ET.SubElement(st, f"{{{bpmn_ns}}}extensionElements")
+            # ext = ET.SubElement(st, f"{{{bpmn_ns}}}extensionElements")
+            ext = ET.Element(f"{{{bpmn_ns}}}extensionElements")
+            st.insert(0, ext)
 
         cam_input_output = ext.find("camunda:inputOutput", namespaces=namespaces)
         if cam_input_output is None:
-            cam_input_output = ET.SubElement(ext, f"{{{camunda_ns}}}inputOutput")
+            cam_input_output = ET.Element(f"{{{camunda_ns}}}inputOutput")
+            ext.insert(0, cam_input_output)
 
         existing = cam_input_output.findall("camunda:outputParameter", namespaces=namespaces)
         existing_names = {op.get("name") for op in existing if op.get("name")}
@@ -208,9 +211,10 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
                 continue
 
             # When the variable is not found, we add the new output parameter
-            outp = ET.SubElement(cam_input_output, f"{{{camunda_ns}}}outputParameter")
+            outp = ET.Element(f"{{{camunda_ns}}}outputParameter")
+            cam_input_output.insert(0, outp)
             outp.set("name", out_param)
-            outp.set("value", f"${{execution.getVariable(\"{out_param}\")}}")
+            outp.text = f"${{execution.getVariable(\"{out_param}\")}}"
             print(f" |   Added output parameter: \"{out_param}\"")
             modified = True
 
