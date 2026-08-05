@@ -192,21 +192,19 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
             value_match = next((op for op in existing if _matches_output_reference(op, out_param) is not None), None,)
             if value_match is not None:
                 existing_name = value_match.get("name")
-                print(f" |   Output parameter \"{out_param}\" already used in parameter \"{existing_name}\", skipping.")
+                print(f" |   Output parameter \"{out_param}\" already used in parameter \"{existing_name}\".")
                 existing_value = _matches_output_reference(value_match, out_param).replace('\n', ' ')
                 print(f" |   Existing value: \"{existing_value}\"")
                 existing.remove(value_match)
-                continue
 
             # Looking for the variable into the script text of the existing output parameter
             script_match = next((op for op in existing if _matches_script_reference(op, out_param, namespaces)is not None), None,)
             if script_match is not None:
                 existing_name = script_match.get("name")
                 existing_script = _matches_script_reference(script_match, out_param, namespaces).replace('\n', ' ')
-                print(f" |*  Output parameter \"{out_param}\" already used in script \"{existing_name}\", skipping.")
+                print(f" |*  Output parameter \"{out_param}\" already used in script \"{existing_name}\".")
                 print(f" |   Existing script: \"{existing_script}\"")
                 existing.remove(script_match)
-                continue
 
             # When the variable is not found, we add the new output parameter
             outp = ET.SubElement(cam_input_output, f"{{{camunda_ns}}}outputParameter")
