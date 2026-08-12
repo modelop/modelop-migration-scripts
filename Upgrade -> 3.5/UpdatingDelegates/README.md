@@ -12,6 +12,17 @@ Updates output parameter references in BPMN processes based on a mapping defined
 python update_outputparameters.py --csv <path_to_csv> [--bpmn-dir <directory> | --url <camunda_engine_rest_url>] [--overwrite | --deploy] [--bearer-token <token>] [--ignore-cert]
 ```
 
+#### Optional Arguments:
+
+- **-h, --help**: Show this help message and exit.
+- **--bpmn-dir `BPMN_DIR`**: Directory to search recursively for .bpmn files (e.g., `./BPMNs` or a repo root). Either this or `--url` must be provided.
+- **--csv `CSV_PATH`**: Path to `DelegatesOutputParams.csv` (default: `DelegatesOutputParams.csv`).
+- **--url `URL`**: Base URL of the Camunda Engine REST API (e.g., `http://localhost:8080/engine-rest`). Either this or `--bpmn-dir` must be provided.
+- **--deploy**: If set when using `--url`, automatically deploy the modified XMLs back to Camunda. Otherwise acts as a dry-run.
+- **--overwrite**: If set when using `--bpmn-dir`, automatically overwrite the modified XML files locally. Otherwise acts as a dry-run.
+- **--bearer-token `BEARER_TOKEN`**: Optional Bearer token for authorization when using `--url`.
+- **--ignore-cert**: If set when using `--url`, ignore SSL certificate errors.
+
 #### Example (Directory - Dry Run):
 ```bash
 python update_outputparameters.py --csv DelegatesOutputParams.csv --bpmn-dir ./test_bpmn_dir
