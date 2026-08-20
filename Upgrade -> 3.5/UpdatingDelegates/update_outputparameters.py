@@ -1,4 +1,6 @@
 import argparse
+import re
+import ssl
 from pathlib import Path
 import csv
 import xml.etree.ElementTree as ET
@@ -9,23 +11,10 @@ import json
 import uuid
 import io
 
-def get_namespaces_from_file(file_path: Path) -> Dict[str, str]:
-    namespaces = {}
-    for _, elem in ET.iterparse(str(file_path), events=('start-ns',)):
-        prefix, uri = elem
-        namespaces[prefix] = uri
-    return namespaces
-
-def get_namespaces_from_string(xml_string: str) -> Dict[str, str]:
-    namespaces = {}
-    for _, elem in ET.iterparse(io.BytesIO(xml_string.encode('utf-8')), events=('start-ns',)):
-        prefix, uri = elem
-        namespaces[prefix] = uri
-    return namespaces
-
 DEFAULT_CSV_PATH = Path("DelegatesOutputParams.csv")
 
 
+# String management - methods
 
 def _lowercase_first_char(s: str) -> str:
     s = (s or "").strip()
@@ -33,13 +22,17 @@ def _lowercase_first_char(s: str) -> str:
         return s
     return s[0].lower() + s[1:]
 
-
 def _normalize_delegate_expression(raw: str) -> str:
     s = (raw or "").strip()
     if s.startswith("${") and s.endswith("}"):
         s = s[2:-1].strip()
     return s
 
+def _matches_version_pattern(version_tag: str) -> bool:
+    return bool(re.match(r"^\d+(?:\.\d+)*(?:-\d+)?$", version_tag))
+
+
+# Element matching - methods
 
 def _matches_output_reference(op: ET.Element, param: str):
     raw_value = (op.text or op.get("value") or "").strip()
@@ -52,7 +45,6 @@ def _matches_output_reference(op: ET.Element, param: str):
     else:
         return None
 
-
 def _matches_script_reference(op: ET.Element, param: str, namespaces: Dict[str, str]):
     script_elem = op.find("camunda:script", namespaces=namespaces)
     raw_script = script_elem.text if script_elem is not None else ""
@@ -64,7 +56,6 @@ def _matches_script_reference(op: ET.Element, param: str, namespaces: Dict[str, 
         return raw_script.strip()
     else:
         return None
-
 
 def _matches_remove_reference(op: ET.Element, param: str, namespaces: Dict[str, str]):
     raw_value = (op.text or op.get("value") or "").strip()
@@ -80,6 +71,25 @@ def _matches_remove_reference(op: ET.Element, param: str, namespaces: Dict[str, 
     else:
         return None
 
+
+# Get namespaces - methods
+
+def get_namespaces_from_file(file_path: Path) -> Dict[str, str]:
+    namespaces = {}
+    for _, elem in ET.iterparse(str(file_path), events=('start-ns',)):
+        prefix, uri = elem
+        namespaces[prefix] = uri
+    return namespaces
+
+def get_namespaces_from_string(xml_string: str) -> Dict[str, str]:
+    namespaces = {}
+    for _, elem in ET.iterparse(io.BytesIO(xml_string.encode('utf-8')), events=('start-ns',)):
+        prefix, uri = elem
+        namespaces[prefix] = uri
+    return namespaces
+
+
+# Get Output Parameter Definitions
 
 def load_delegate_outputparam_map(csv_path: Path) -> Dict[str, List[str]]:
     if not csv_path.exists():
@@ -118,6 +128,8 @@ def load_delegate_outputparam_map(csv_path: Path) -> Dict[str, List[str]]:
 
     return mapping
 
+
+# Update parameter mapping for service tasks in BPMN files
 
 def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[str]], namespaces: Dict[str, str]) -> bool:
     root = tree.getroot()
@@ -223,8 +235,61 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
             else:
                 print(f" |*  Keeping existing Output parameter name: \"{existing_output_name}\" with value: \"{existing_output.text if existing_output.text is not None else existing_output.get('value')}\"")
 
+    # Update version tag on the process and documentation tag if modified
+    if modified:
+        camunda_ns = namespaces.get("camunda")
+        process = root.find(".//bpmn:process", namespaces=namespaces)
+        if process is not None:
+            version_tag = process.get(f"{{{camunda_ns}}}versionTag")
+            new_version_tag = update_version_tag(version_tag)
+            if new_version_tag != version_tag:
+                process.set(f"{{{camunda_ns}}}versionTag", new_version_tag)
+                print(f" Updated versionTag from {version_tag} to {new_version_tag}")
+            else:
+                print(f" versionTag: {new_version_tag}")
+
+        documentation = process.find(".//bpmn:documentation", namespaces=namespaces)
+        if documentation is not None:
+            doc_text = documentation.text
+            # print(f" Doc-existing text: \n{doc_text}")
+            doc_text_updated = update_documentation(doc_text)
+            documentation.text = doc_text_updated
+        else:
+            doc_text = ""
+            print(f" No documentation tag found")
+            doc_text_updated = update_documentation(doc_text)
+            new_documentation = ET.Element(f"{{{bpmn_ns}}}documentation")
+            new_documentation.text = doc_text_updated
+            process.insert(0, new_documentation)
+        print(f" Documentation updated")
+
     return modified
 
+
+# Update versionTag and Documentation methods
+
+def update_version_tag(version_tag: str) -> str:
+    new_version_tag = "3.5-1"
+    if version_tag:
+        if _matches_version_pattern(version_tag):
+            return new_version_tag
+        else:
+            print(f" versionTag does not match pattern")
+            return version_tag
+    else:
+        return new_version_tag
+
+def update_documentation(documentation: str) -> str:
+    if "Release Notes" in documentation:
+        if "- 3.5-1 MOC-130 Explicit Output Global Variables" in documentation:
+            return documentation
+        else:
+            return documentation + "\n- 3.5-1 MOC-130 Explicit Output Global Variables"
+    else:
+        return documentation + "\nRelease Notes:\n- 3.5-1 MOC-130 Explicit Output Global Variables"
+
+
+# Add output parameters in BPMN files
 
 def add_output_parameters_from_csv(bpmn_path: Path, delegate_to_outputs: Dict[str, List[str]], overwrite: bool = False) -> bool:
     try:
@@ -250,16 +315,23 @@ def add_output_parameters_from_csv(bpmn_path: Path, delegate_to_outputs: Dict[st
     return modified
 
 
-def get_camunda_process_definitions(base_url: str, token: Optional[str] = None) -> List[Dict]:
+# Camunda Service - methods
+
+def get_camunda_process_definitions(base_url: str, token: Optional[str] = None, ignore_cert: Optional[str] = None) -> List[Dict]:
     """Fetch the latest version of all deployed process definitions."""
     url = f"{base_url.rstrip('/')}/process-definition?latestVersion=true"
     req = urllib.request.Request(url, method="GET")
     req.add_header("Accept", "application/json")
+    if ignore_cert:
+        context = ssl._create_unverified_context()
+    else:
+        context = ssl.create_default_context()
+
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, context=context) as response:
             if response.status == 200:
                 data = response.read()
                 return json.loads(data)
@@ -270,17 +342,20 @@ def get_camunda_process_definitions(base_url: str, token: Optional[str] = None) 
         print(f"Error connecting to Camunda at {url}: {e}")
         return []
 
-
-def get_camunda_bpmn_xml(base_url: str, process_definition_id: str, token: Optional[str] = None) -> Optional[str]:
+def get_camunda_bpmn_xml(base_url: str, process_definition_id: str, token: Optional[str] = None, ignore_cert: Optional[str] = None) -> Optional[str]:
     """Fetch the BPMN XML string for a specific process definition."""
     url = f"{base_url.rstrip('/')}/process-definition/{urllib.parse.quote(process_definition_id)}/xml"
     req = urllib.request.Request(url, method="GET")
     req.add_header("Accept", "application/json")
+    if ignore_cert:
+        context = ssl._create_unverified_context()
+    else:
+        context = ssl.create_default_context()
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, context=context) as response:
             if response.status == 200:
                 data = json.loads(response.read())
                 return data.get("bpmn20Xml")
@@ -291,8 +366,7 @@ def get_camunda_bpmn_xml(base_url: str, process_definition_id: str, token: Optio
         print(f"Error fetching XML for {process_definition_id}: {e}")
         return None
 
-
-def deploy_to_camunda(base_url: str, deployment_name: str, xml_content: str, filename: str, token: Optional[str] = None) -> bool:
+def deploy_to_camunda(base_url: str, deployment_name: str, xml_content: str, filename: str, token: Optional[str] = None, ignore_cert: Optional[str] = None) -> bool:
     """Deploy raw XML content to Camunda via multipart/form-data."""
     url = f"{base_url.rstrip('/')}/deployment/create"
     
@@ -324,13 +398,17 @@ def deploy_to_camunda(base_url: str, deployment_name: str, xml_content: str, fil
     req = urllib.request.Request(url, data=body, method="POST")
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
     req.add_header("Accept", "application/json")
+    if ignore_cert:
+        context = ssl._create_unverified_context()
+    else:
+        context = ssl.create_default_context()
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, context=context) as response:
             if response.status == 200:
-                print(f"Successfully deployed: {deployment_name}\n")
+                print(f"Successfully deployed: {deployment_name}")
                 return True
             else:
                 print(f"Failed to deploy {deployment_name}: HTTP {response.status}\n")
@@ -339,6 +417,38 @@ def deploy_to_camunda(base_url: str, deployment_name: str, xml_content: str, fil
         print(f"Error deploying {deployment_name}: {e}\n")
         return False
 
+def suspend_process(base_url: str, pd_key: str, token: Optional[str], ignore_cert: Optional[bool]) -> bool:
+    """Suspend a process definition in Camunda."""
+    url = f"{base_url.rstrip('/')}/process-definition/key/{urllib.parse.quote(pd_key)}/suspended"
+
+    data = json.dumps({"suspended": True}).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="PUT")
+
+    req.add_header("Accept", "application/json")
+    req.add_header("Content-Type", "application/json")
+
+    if ignore_cert:
+        context = ssl._create_unverified_context()
+    else:
+        context = ssl.create_default_context()
+
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+
+    try:
+        with urllib.request.urlopen(req, context=context) as response:
+            if 200 <= response.status < 300:
+                print(f"Successfully suspended process definition: {pd_key}\n")
+                return True
+            else:
+                print(f"Failed to suspend {pd_key}: HTTP {response.status}\n")
+                return False
+    except Exception as e:
+        print(f"Error suspending {pd_key}: {e}\n")
+        return False
+
+
+# Main method
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -372,6 +482,11 @@ def main() -> None:
         "--bearer-token",
         help="Optional Bearer token for authorization when using --url.",
     )
+    parser.add_argument(
+        "--ignore-cert",
+        action="store_true",
+        help="If set when using --url, ignore SSL certificate errors.",
+    )
     args = parser.parse_args()
 
     if not args.bpmn_dir and not args.url:
@@ -389,7 +504,7 @@ def main() -> None:
 
     if args.url:
         print(f"Connecting to Camunda at {args.url}")
-        process_defs = get_camunda_process_definitions(args.url, token=args.bearer_token)
+        process_defs = get_camunda_process_definitions(args.url, token=args.bearer_token, ignore_cert=args.ignore_cert)
         if not process_defs:
             print("No process definitions found or failed to connect.")
             return
@@ -400,8 +515,9 @@ def main() -> None:
             pd_id = pdef.get("id")
             pd_key = pdef.get("key")
             pd_name = pdef.get("name") or pd_key
-            
-            xml_content = get_camunda_bpmn_xml(args.url, pd_id, token=args.bearer_token)
+            pd_suspended = pdef.get("suspended")
+
+            xml_content = get_camunda_bpmn_xml(args.url, pd_id, token=args.bearer_token, ignore_cert=args.ignore_cert)
             if not xml_content:
                 continue
                 
@@ -409,7 +525,10 @@ def main() -> None:
                 namespaces = get_namespaces_from_string(xml_content)
                 tree = ET.ElementTree(ET.fromstring(xml_content))
                 
-                print(f"Analyzing process: {pd_key} [{pd_id}]")
+                if pd_suspended:
+                    print(f"Analyzing process: {pd_key} [{pd_id}] Suspended")
+                else:
+                    print(f"Analyzing process: {pd_key} [{pd_id}]")
                 if update_bpmn_tree(tree, delegate_to_outputs, namespaces):
                     changed += 1
                     changed_files.append(pd_key)
@@ -425,7 +544,10 @@ def main() -> None:
                         deploy_name = f"{pd_name} (Updated)"
                         filename = f"{pd_key}.bpmn"
                         
-                        deploy_to_camunda(args.url, deploy_name, xml_str, filename, token=args.bearer_token)
+                        deploy_to_camunda(args.url, deploy_name, xml_str, filename, token=args.bearer_token, ignore_cert=args.ignore_cert)
+
+                        if pd_suspended:
+                            suspend_process(args.url, pd_key, token=args.bearer_token, ignore_cert=args.ignore_cert)
                     else:
                         print(f"Dry run. Skipping deployment for {pd_key}. Use --deploy to push changes.\n")
                 else:

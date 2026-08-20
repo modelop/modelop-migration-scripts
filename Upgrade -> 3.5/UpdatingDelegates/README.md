@@ -1,23 +1,46 @@
 # UpdatingDelegates
 
-A set of Python utilities for auditing and managing Camunda BPMN processes, specifically focusing on Java delegates and output parameter mapping.
+A set of Python utilities for managing Camunda BPMN processes, specifically focusing on Java delegates and output parameter mapping.
 
-## Scripts
+## Script
 
-### `find_delegate.py`
-Searches for specific Java delegates, classes, or expressions used in BPMN Service Tasks.
+## `update_outputparameters.py`
+Updates output parameter references in BPMN processes based on a mapping defined in a CSV file. It dynamically extracts XML namespaces and ensures correct XML declaration formatting.
 
 #### Usage:
 ```bash
-python find_delegate.py --delegate <delegate_name> [--bpmn-dir <directory> | --url <camunda_engine_rest_url>]
+python update_outputparameters.py --csv <path_to_csv> [--bpmn-dir <directory> | --url <camunda_engine_rest_url>] [--overwrite | --deploy] [--bearer-token <token>] [--ignore-cert]
 ```
 
-### `update_outputparameters.py`
-Audits and updates output parameter references in BPMN processes based on a mapping defined in a CSV file. It now dynamically extracts XML namespaces and ensures correct XML declaration formatting.
+#### Optional Arguments:
 
-#### Usage:
+- **-h, --help**: Show this help message and exit.
+- **--bpmn-dir `BPMN_DIR`**: Directory to search recursively for .bpmn files (e.g., `./BPMNs` or a repo root). Either this or `--url` must be provided.
+- **--csv `CSV_PATH`**: Path to `DelegatesOutputParams.csv` (default: `DelegatesOutputParams.csv`).
+- **--url `URL`**: Base URL of the Camunda Engine REST API (e.g., `http://localhost:8080/engine-rest`). Either this or `--bpmn-dir` must be provided.
+- **--deploy**: If set when using `--url`, automatically deploy the modified XMLs back to Camunda. Otherwise acts as a dry-run.
+- **--overwrite**: If set when using `--bpmn-dir`, automatically overwrite the modified XML files locally. Otherwise acts as a dry-run.
+- **--bearer-token `BEARER_TOKEN`**: Optional Bearer token for authorization when using `--url`.
+- **--ignore-cert**: If set when using `--url`, ignore SSL certificate errors.
+
+#### Example (Directory - Dry Run):
 ```bash
-python update_outputparameters.py --csv <path_to_csv> [--bpmn-dir <directory> | --url <camunda_engine_rest_url>] [--overwrite | --deploy] [--bearer-token <token>]
+python update_outputparameters.py --csv DelegatesOutputParams.csv --bpmn-dir ./test_bpmn_dir
+```
+
+#### Example (Directory - Overwrite):
+```bash
+python update_outputparameters.py --csv DelegatesOutputParams.csv --bpmn-dir ./test_bpmn_dir --overwrite
+```
+
+#### Example (URL - Dry Run):
+```bash
+python update_outputparameters.py --csv DelegatesOutputParams.csv --url http://localhost:8080/engine-rest --bearer-token <specific-token> --ignore-cert
+```
+
+#### Example (URL - Deploy):
+```bash
+python update_outputparameters.py --csv DelegatesOutputParams.csv --url http://localhost:8080/engine-rest --deploy --bearer-token <specific-token>
 ```
 
 ## CSV Format
