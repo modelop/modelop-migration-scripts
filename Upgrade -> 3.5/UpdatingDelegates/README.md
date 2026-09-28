@@ -40,7 +40,7 @@ python update_outputparameters.py --csv <path_to_csv> [--bpmn-dir <directory> | 
 - **-h, --help**: Show this help message and exit.
 - **--bpmn-dir `BPMN_DIR`**: Directory to search recursively for .bpmn files (e.g., `./BPMNs` or a repo root). Either this or `--url` must be provided.
 - **--csv `CSV_PATH`**: Path to `DelegatesOutputParams.csv` (default: `DelegatesOutputParams.csv`). The CSV must exist even if you only need the StrSubstitutor fix.
-- **--url `URL`**: Base URL of the Camunda Engine REST API (e.g., `http://localhost:8080/mlc-service/rest`). Either this or `--bpmn-dir` must be provided.
+- **--url `URL`**: Base URL of the Camunda Engine REST API (e.g., `http://localhost:8090/mlc-service/rest`). Either this or `--bpmn-dir` must be provided.
 - **--deploy**: If set when using `--url`, automatically deploy the modified XMLs back to Camunda. Otherwise acts as a dry-run.
 - **--overwrite**: If set when using `--bpmn-dir`, automatically overwrite the modified XML files locally. Otherwise acts as a dry-run.
 - **--bearer-token `BEARER_TOKEN`**: Optional Bearer token for authorization when using `--url`.
@@ -58,12 +58,12 @@ python update_outputparameters.py --csv DelegatesOutputParams.csv --bpmn-dir ./t
 
 #### Example (URL - Dry Run):
 ```bash
-python update_outputparameters.py --csv DelegatesOutputParams.csv --url http://localhost:8080/mlc-service/rest --bearer-token <specific-token> --ignore-cert
+python update_outputparameters.py --csv DelegatesOutputParams.csv --url http://localhost:8090/mlc-service/rest --bearer-token <specific-token> --ignore-cert
 ```
 
 #### Example (URL - Deploy):
 ```bash
-python update_outputparameters.py --csv DelegatesOutputParams.csv --url http://localhost:8080/mlc-service/rest --deploy --bearer-token <specific-token>
+python update_outputparameters.py --csv DelegatesOutputParams.csv --url http://localhost:8090/mlc-service/rest --deploy --bearer-token <specific-token>
 ```
 
 ## CSV Format
