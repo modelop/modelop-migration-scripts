@@ -13,6 +13,14 @@ import io
 
 DEFAULT_CSV_PATH = Path("DelegatesOutputParams.csv")
 
+OLD_STRSUBSTITUTOR_IMPORT = "import org.apache.commons.lang.text.StrSubstitutor"
+NEW_STRSUBSTITUTOR_IMPORT = "import org.apache.commons.text.StringSubstitutor"
+OLD_STRSUBSTITUTOR_CLASS = "StrSubstitutor"
+NEW_STRSUBSTITUTOR_CLASS = "StringSubstitutor"
+
+OUTPUT_PARAMS_RELEASE_NOTE = "- 3.5-1 MOC-130 Explicit Output Global Variables"
+STRSUBSTITUTOR_RELEASE_NOTE = "- 3.5-1 Replaced deprecated StrSubstitutor with StringSubstitutor"
+
 
 # String management - methods
 
@@ -129,11 +137,28 @@ def load_delegate_outputparam_map(csv_path: Path) -> Dict[str, List[str]]:
     return mapping
 
 
+# Replace deprecated StrSubstitutor usages in scripts
+
+def fix_strsubstitutor(root: ET.Element) -> bool:
+    modified = False
+    for elem in root.iter():
+        text = elem.text
+        if not text or OLD_STRSUBSTITUTOR_IMPORT not in text:
+            continue
+        new_text = text.replace(OLD_STRSUBSTITUTOR_IMPORT, NEW_STRSUBSTITUTOR_IMPORT)
+        elem.text = new_text.replace(OLD_STRSUBSTITUTOR_CLASS, NEW_STRSUBSTITUTOR_CLASS)
+        owner = elem.get("id") or elem.get("name") or elem.tag.split("}")[-1]
+        print(f" |── Replaced StrSubstitutor with StringSubstitutor in \"{owner}\"")
+        modified = True
+    return modified
+
+
 # Update parameter mapping for service tasks in BPMN files
 
 def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[str]], namespaces: Dict[str, str]) -> bool:
     root = tree.getroot()
-    modified = False
+    bpmn_ns = namespaces.get("bpmn")
+    outputs_modified = False
 
     for st in root.findall(".//bpmn:serviceTask", namespaces=namespaces):
         camunda_ns = namespaces.get("camunda")
@@ -223,7 +248,7 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
             outp.set("name", out_param)
             outp.text = f"${{execution.getVariable(\"{out_param}\")}}"
             print(f" |   Added output parameter: \"{out_param}\"")
-            modified = True
+            outputs_modified = True
 
         # Swapping the existing outputs in the ServiceTask
         for existing_output in existing:
@@ -234,6 +259,15 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
                 print(f" |*  Keeping existing Output parameter name: \"{existing_output_name}\" with script: \"{script_text}\"")
             else:
                 print(f" |*  Keeping existing Output parameter name: \"{existing_output_name}\" with value: \"{existing_output.text if existing_output.text is not None else existing_output.get('value')}\"")
+
+    strsubstitutor_modified = fix_strsubstitutor(root)
+    modified = outputs_modified or strsubstitutor_modified
+
+    release_notes = []
+    if outputs_modified:
+        release_notes.append(OUTPUT_PARAMS_RELEASE_NOTE)
+    if strsubstitutor_modified:
+        release_notes.append(STRSUBSTITUTOR_RELEASE_NOTE)
 
     # Update version tag on the process and documentation tag if modified
     if modified:
@@ -252,12 +286,12 @@ def update_bpmn_tree(tree: ET.ElementTree, delegate_to_outputs: Dict[str, List[s
         if documentation is not None:
             doc_text = documentation.text
             # print(f" Doc-existing text: \n{doc_text}")
-            doc_text_updated = update_documentation(doc_text)
+            doc_text_updated = update_documentation(doc_text, release_notes)
             documentation.text = doc_text_updated
         else:
             doc_text = ""
             print(f" No documentation tag found")
-            doc_text_updated = update_documentation(doc_text)
+            doc_text_updated = update_documentation(doc_text, release_notes)
             new_documentation = ET.Element(f"{{{bpmn_ns}}}documentation")
             new_documentation.text = doc_text_updated
             process.insert(0, new_documentation)
@@ -279,14 +313,14 @@ def update_version_tag(version_tag: str) -> str:
     else:
         return new_version_tag
 
-def update_documentation(documentation: str) -> str:
-    if "Release Notes" in documentation:
-        if "- 3.5-1 MOC-130 Explicit Output Global Variables" in documentation:
-            return documentation
-        else:
-            return documentation + "\n- 3.5-1 MOC-130 Explicit Output Global Variables"
-    else:
-        return documentation + "\nRelease Notes:\n- 3.5-1 MOC-130 Explicit Output Global Variables"
+def update_documentation(documentation: str, release_notes: List[str]) -> str:
+    documentation = documentation or ""
+    if "Release Notes" not in documentation:
+        documentation += "\nRelease Notes:"
+    for note in release_notes:
+        if note not in documentation:
+            documentation += f"\n{note}"
+    return documentation
 
 
 # Add output parameters in BPMN files
@@ -452,7 +486,8 @@ def suspend_process(base_url: str, pd_key: str, token: Optional[str], ignore_cer
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Add camunda:outputParameter entries to BPMN serviceTasks based on delegateExpression -> CSV mapping."
+        description="Add camunda:outputParameter entries to BPMN serviceTasks based on delegateExpression -> CSV mapping, "
+                    "and replace deprecated StrSubstitutor usages with StringSubstitutor in scripts."
     )
     parser.add_argument(
         "--bpmn-dir",
